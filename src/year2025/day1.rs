@@ -1,6 +1,6 @@
 use std::str::Lines;
 
-pub fn handle_input(input: &String) -> Lines {
+pub fn handle_input(input: &'_  String) -> Lines<'_> {
     input.lines()
 }
 
