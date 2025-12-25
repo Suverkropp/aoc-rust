@@ -1,4 +1,4 @@
-pub fn handle_input(input: &String) -> impl Iterator<Item = (u64, u64)> {
+pub fn handle_input(input: &str) -> impl Iterator<Item = (u64, u64)> {
     input.split(',').map(|range| {
         let (begin, end) = range.split_once('-').unwrap();
         let begin: u64 = begin.parse::<u64>().unwrap();
