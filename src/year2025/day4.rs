@@ -8,7 +8,7 @@ pub fn part1(grid: &Grid<bool>) -> usize {
     let mut count = 0;
     for i in 0..grid.get_height() {
         for j in 0..grid.get_width() {
-            if grid.get(i, j).unwrap() && accessible(grid,i,j) {
+            if grid.get(i, j).unwrap() && accessible(grid, i, j) {
                 count += 1;
             }
         }
@@ -39,7 +39,7 @@ fn remove_rolls(grid: &mut Grid<bool>) -> usize {
     let mut count = 0;
     for i in 0..grid.get_height() {
         for j in 0..grid.get_width() {
-            if grid.get(i, j).unwrap() && accessible(grid,i,j) {
+            if grid.get(i, j).unwrap() && accessible(grid, i, j) {
                 grid.set(i, j, false);
                 count += 1;
             }
@@ -54,7 +54,7 @@ mod tests {
     use crate::aoc::get_test_input;
 
     #[test]
-    pub fn part1(){
+    pub fn part1() {
         let input = get_test_input(2025, 4);
         let input = handle_input(&input);
         let res = super::part1(&input);
@@ -62,7 +62,7 @@ mod tests {
     }
 
     #[test]
-    pub fn part2(){
+    pub fn part2() {
         let input = get_test_input(2025, 4);
         let mut input = handle_input(&input);
         let res = super::part2(&mut input);

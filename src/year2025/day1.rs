@@ -49,7 +49,7 @@ mod tests {
     use crate::aoc::get_test_input;
 
     #[test]
-    pub fn part1(){
+    pub fn part1() {
         let input = get_test_input(2025, 1);
         let input = handle_input(&input);
         let res = super::part1(input);
@@ -57,11 +57,10 @@ mod tests {
     }
 
     #[test]
-    pub fn part2(){
+    pub fn part2() {
         let input = get_test_input(2025, 1);
         let input = handle_input(&input);
         let res = super::part2(input);
         assert_eq!(res, 6);
     }
-
 }
