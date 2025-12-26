@@ -1,6 +1,5 @@
 use std::fs;
-use std::iter::repeat;
-use std::slice::{Iter, IterMut};
+use std::slice::Iter;
 
 pub fn get_input(year: i32, day: i32) -> String {
     let path = format!("input/{year}/day{day}.txt");
@@ -81,20 +80,4 @@ impl<T: Copy> Grid<T> {
         self.grid.iter()
     }
 
-    pub fn iter_mut(&'_ mut self) -> IterMut<'_, T> {
-        self.grid.iter_mut()
-    }
-
-    pub fn index_iter(&self) -> impl Iterator<Item = (usize, usize)> {
-        (0..self.width).flat_map(|i| repeat(i).zip(0..self.height))
-    }
-}
-
-impl<T: Copy> IntoIterator for Grid<T> {
-    type Item = T;
-    type IntoIter = <Vec<T> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.grid.into_iter()
-    }
 }
