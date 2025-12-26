@@ -34,7 +34,7 @@ pub fn part2(rotations: impl Iterator<Item = (i32, i32)>) -> i32 {
         if dial == 0 {
             zeros += 1
         }
-        if old.signum() == -dir {
+        if old.signum() == -dial.signum() {
             zeros += 1;
         }
         zeros += (dial / 100).abs();
