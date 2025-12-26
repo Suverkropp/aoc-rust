@@ -1,5 +1,4 @@
 use std::cmp::{max, min};
-use std::collections::BTreeMap;
 
 type Id = u64;
 
@@ -24,38 +23,42 @@ fn is_fresh(ranges: &Vec<(Id, Id)>, id: Id) -> bool {
 }
 
 pub fn part2(ranges: &Vec<(Id, Id)>) -> u64 {
-    let mut fresh_lows: BTreeMap<Id, Id> = BTreeMap::new();
-    let mut fresh_highs: BTreeMap<Id, Id> = BTreeMap::new();
+    let mut fresh_ranges: Vec<(Id, Id)> = Vec::new();
     for (low, high) in ranges {
-        let mut new_low = *low;
-        let mut new_high = *high;
-        let lows_to_remove = ranges_between(&fresh_lows, *low, *high);
-        for (low, high) in lows_to_remove {
-            new_high = max(new_high, high);
-            fresh_lows.remove(&low);
-            fresh_highs.remove(&high);
+        let lowest_overlap = fresh_ranges
+            .iter()
+            .position(|(_l, h)| low <= h);
+        let highest_overlap = fresh_ranges
+            .iter()
+            .rposition(|(l,_h)| l <= high);
+
+        match (lowest_overlap, highest_overlap) {
+            (None, None) => fresh_ranges.push((*low, *high)),
+            (Some(_), None) => fresh_ranges.insert(0, (*low, *high)),
+            (None, Some(_)) => fresh_ranges.push((*low, *high)),
+            (Some(i), Some(j)) => {
+                let (l, _) = fresh_ranges[i];
+                let (_, h) = fresh_ranges[j];
+                let low = min(*low, l);
+                let high = max(*high, h);
+                remove_between(&mut fresh_ranges, i, j);
+                fresh_ranges.insert(i, (low, high))
+            }
         }
-        let highs_to_remove = ranges_between(&fresh_highs, *low, *high);
-        for (high, low) in highs_to_remove {
-            new_low = min(new_low, low);
-            fresh_lows.remove(&low);
-            fresh_highs.remove(&high);
-        }
-        fresh_lows.insert(new_low, new_high);
-        fresh_highs.insert(new_high, new_low);
+
+
     }
-    total_range(fresh_lows)
+    total_range(fresh_ranges)
 }
 
-fn ranges_between(ranges: &BTreeMap<Id, Id>, low: Id, high: Id) -> Vec<(Id, Id)> {
-    ranges
-        .range(low..=high)
-        .map(|(l, h)| (*l, *h))
-        .collect::<Vec<(Id, Id)>>()
+fn remove_between<T>(vec: &mut Vec<T>, min: usize, max: usize) {
+    for _ in min..=max {
+        vec.remove(min);
+    }
 }
 
-fn total_range(ranges: BTreeMap<Id, Id>) -> u64 {
-    ranges.iter().map(|(low, high)| high - low + 1).sum()
+fn total_range(ranges: impl IntoIterator<Item = (Id, Id)>) -> u64 {
+    ranges.into_iter().map(|(low, high)| high - low + 1).sum()
 }
 
 #[cfg(test)]
