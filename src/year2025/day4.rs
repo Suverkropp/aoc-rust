@@ -1,4 +1,4 @@
-use crate::aoc::{Grid, read_grid};
+use crate::grid::{Grid, read_grid};
 
 pub fn handle_input(input: &str) -> Grid<bool> {
     read_grid(input).map(|x| *x == '@')
@@ -51,7 +51,7 @@ fn remove_rolls(grid: &mut Grid<bool>) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aoc::get_test_input;
+    use crate::input::get_test_input;
 
     #[test]
     pub fn part1() {

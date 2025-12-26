@@ -46,7 +46,7 @@ pub fn part2(rotations: impl Iterator<Item = (i32, i32)>) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aoc::get_test_input;
+    use crate::input::get_test_input;
 
     #[test]
     pub fn part1() {

@@ -45,7 +45,7 @@ fn is_repeated(id: u64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aoc::get_test_input;
+    use crate::input::get_test_input;
 
     #[test]
     pub fn part1() {

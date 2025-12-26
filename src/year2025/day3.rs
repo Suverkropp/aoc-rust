@@ -37,7 +37,7 @@ fn bank_joltage_with_override(bank: Vec<u32>) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aoc::get_test_input;
+    use crate::input::get_test_input;
 
     #[test]
     pub fn part1() {
