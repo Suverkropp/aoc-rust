@@ -33,3 +33,25 @@ fn bank_joltage_with_override(bank: Vec<u32>) -> u64 {
     }
     num
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aoc::get_test_input;
+
+    #[test]
+    pub fn part1(){
+        let input = get_test_input(2025, 3);
+        let input = handle_input(&input);
+        let res = super::part1(input);
+        assert_eq!(res, 357);
+    }
+
+    #[test]
+    pub fn part2(){
+        let input = get_test_input(2025, 3);
+        let input = handle_input(&input);
+        let res = super::part2(input);
+        assert_eq!(res, 3121910778619);
+    }
+}

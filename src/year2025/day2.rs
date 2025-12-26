@@ -41,3 +41,26 @@ fn is_repeated(id: u64) -> bool {
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aoc::get_test_input;
+
+    #[test]
+    pub fn part1(){
+        let input = get_test_input(2025, 2);
+        let input = handle_input(&input);
+        let res = super::part1(input);
+        assert_eq!(res, 1227775554);
+    }
+
+    #[test]
+    pub fn part2(){
+        let input = get_test_input(2025, 2);
+        let input = handle_input(&input);
+        let res = super::part2(input);
+        assert_eq!(res, 4174379265);
+    }
+
+}
