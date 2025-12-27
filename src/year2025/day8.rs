@@ -1,4 +1,5 @@
 use std::cmp::{max, min};
+use itertools::Itertools;
 
 pub struct Position {
     x: i64,
@@ -69,7 +70,7 @@ fn pairs_by_distance(junction_boxes: &Vec<Position>) -> Vec<(usize, usize)> {
 }
 
 fn pairs(from: usize, to: usize) -> impl Iterator<Item = (usize, usize)> {
-    (from..to).flat_map(|i| (0..i).map(|j| (i, j)).collect::<Vec<_>>())
+    (from..to).tuple_combinations()
 }
 
 fn dist(p1: &Position, p2: &Position) -> f64 {
@@ -127,7 +128,7 @@ mod tests {
             Position { x: 1, y: 2, z: 3 },
         ];
         let distances = pairs_by_distance(&positions);
-        let expected = vec![(2, 1), (1, 0), (2, 0)];
+        let expected = vec![(1, 2), (0, 1), (0, 2)];
         assert_eq!(distances, expected);
     }
 
