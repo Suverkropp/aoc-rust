@@ -1,8 +1,9 @@
 use crate::grid::Grid;
 use crate::year2025::day9::Tile::{Green, Red, White};
-use itertools::{Itertools, iproduct};
-use std::cmp::{PartialEq, Reverse, max, min};
+use itertools::Itertools;
+use std::cmp::{max, min, PartialEq, Reverse};
 use std::collections::VecDeque;
+use std::iter::repeat;
 
 pub type Position = (usize, usize);
 
@@ -56,7 +57,7 @@ pub fn part2(red_tiles: &Vec<Position>) -> usize {
                 println!("Counter: {counter}");
                 println!("Area: {area}");
             }
-            no_white_in_rectangle(&green_tiles, *p1, *p2)
+            no_white_on_rectangle_edges(&green_tiles, *p1, *p2)
         })
         .map(|((_, _), area)| *area)
         .next()
@@ -101,12 +102,7 @@ fn colour_white_outside_red(tiles: &mut Grid<Tile>) {
     println!("Tiles coloured white: {counter}/{}", width * height);
 }
 
-fn add_to_queue(
-    queue: &mut VecDeque<(usize, usize)>,
-    tiles: &mut Grid<Tile>,
-    x: usize,
-    y: usize,
-) {
+fn add_to_queue(queue: &mut VecDeque<(usize, usize)>, tiles: &mut Grid<Tile>, x: usize, y: usize) {
     if tiles.get(x, y).unwrap() == Green {
         tiles.set(x, y, White);
         queue.push_back((x, y));
@@ -145,13 +141,22 @@ fn colour_line_red(grid: &mut Grid<Tile>, (x1, y1): &Position, (x2, y2): &Positi
     }
 }
 
-fn no_white_in_rectangle(green_tiles: &Grid<Tile>, (x1, y1): Position, (x2, y2): Position) -> bool {
+fn no_white_on_rectangle_edges(tiles: &Grid<Tile>, (x1, y1): Position, (x2, y2): Position) -> bool {
     let x_min = min(x1, x2);
     let x_max = max(x1, x2);
     let y_min = min(y1, y2);
     let y_max = max(y1, y2);
 
-    iproduct!(x_min..=x_max, y_min..=y_max).all(|(x, y)| green_tiles.get(x, y).unwrap() != White)
+    let left_edge = repeat(x_min).zip(y_min..=y_max);
+    let right_edge = repeat(x_max).zip(y_min..=y_max);
+    let top_edge = (x_min..=x_max).zip(repeat(y_min));
+    let bottom_edge = (x_min..=x_max).zip(repeat(y_max));
+
+    left_edge
+        .chain(right_edge)
+        .chain(top_edge)
+        .chain(bottom_edge)
+        .all(|(x, y)| tiles.get(x, y).unwrap() != White)
 }
 
 #[cfg(test)]
