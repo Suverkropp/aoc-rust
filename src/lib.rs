@@ -14,6 +14,14 @@ pub mod input {
     }
 }
 
+pub mod parsers {
+    pub fn parse_with_delimiters<T>(start: char, end: char, input: &str, parser: impl Fn(&str) -> T) -> T {
+        assert_eq!(input.chars().nth(0).unwrap(), start);
+        assert_eq!(input.chars().nth_back(0).unwrap(), end);
+        parser(&input[1..input.len() - 1])
+    }
+}
+
 pub mod grid {
     use std::fmt::Display;
     use std::slice::Iter;
