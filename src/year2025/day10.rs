@@ -1,10 +1,25 @@
 use crate::parsers::parse_with_delimiters;
-use itertools::{Either, Itertools};
 use itertools::Either::{Left, Right};
+use itertools::{Either, Itertools};
+use std::fmt::Debug;
+
+struct LightDiagram(Vec<bool>);
+
+impl Debug for LightDiagram {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let lights = self
+            .0
+            .iter()
+            .map(|l| if *l { '#' } else { '.' })
+            .collect::<String>();
+        let light_diagram = format!("[{lights}]");
+        f.write_str(&light_diagram)
+    }
+}
 
 #[derive(Debug)]
 pub struct Machine {
-    light_diagram: Vec<bool>,
+    light_diagram: LightDiagram,
     button_wiring_schematics: Vec<Button>,
     joltage_requirements: Vec<u32>,
 }
@@ -31,16 +46,18 @@ fn parse_machine(input: &str) -> Machine {
     }
 }
 
-fn parse_light_diagram(input: &str) -> Vec<bool> {
+fn parse_light_diagram(input: &str) -> LightDiagram {
     parse_with_delimiters('[', ']', input, |lights| {
-        lights
-            .chars()
-            .map(|l| match l {
-                '.' => false,
-                '#' => true,
-                _ => panic!("Light diagram cannot contain {l}"),
-            })
-            .collect::<Vec<_>>()
+        LightDiagram(
+            lights
+                .chars()
+                .map(|l| match l {
+                    '.' => false,
+                    '#' => true,
+                    _ => panic!("Light diagram cannot contain {l}"),
+                })
+                .collect::<Vec<_>>(),
+        )
     })
 }
 
@@ -61,7 +78,7 @@ pub fn part1(machines: &Vec<Machine>) -> u32 {
 }
 
 fn start_machine(machine: &Machine) -> u32 {
-    for presses in 0..machine.light_diagram.len() {
+    for presses in 0..machine.light_diagram.0.len() {
         if machine
             .button_wiring_schematics
             .iter()
@@ -74,10 +91,10 @@ fn start_machine(machine: &Machine) -> u32 {
     panic!("No solution found for machine {machine:?}");
 }
 
-fn buttons_turn_on_machine(buttons: Vec<&Button>, light_diagram: &Vec<bool>) -> bool {
-    let mut lights = vec![false; light_diagram.len()];
+fn buttons_turn_on_machine(buttons: Vec<&Button>, light_diagram: &LightDiagram) -> bool {
+    let mut lights = vec![false; light_diagram.0.len()];
     press_buttons_for_lights(&mut lights, buttons);
-    &lights == light_diagram
+    lights == light_diagram.0
 }
 
 fn press_buttons_for_lights(lights: &mut Vec<bool>, buttons: Vec<&Button>) {
@@ -144,14 +161,14 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<u32>
     }
 
     match required_button(machine) {
-        Left( button) => {
+        Left(button) => {
             press_button(machine, &button);
             let result = find_least_presses(machine, previous_result);
             unpress_button(machine, &button);
             return result;
         }
         Right(true) => return previous_result,
-        Right(false) => {}//
+        Right(false) => {} //
     }
 
     // Try pressing the last button
@@ -197,10 +214,11 @@ fn required_button<'a>(machine: &RunningMachine<'_>) -> Either<Button, bool> {
 
         let mut usable_buttons = machine.buttons.iter().filter(|button| button.contains(&i));
         match usable_buttons.next() {
-            Some(button) =>
+            Some(button) => {
                 if usable_buttons.next().is_none() {
                     return Left(button.clone());
                 }
+            }
             None => return Right(true),
         }
     }
