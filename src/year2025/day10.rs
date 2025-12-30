@@ -76,7 +76,7 @@ fn start_machine(machine: &Machine) -> u32 {
 fn buttons_turn_on_machine(buttons: Vec<&Button>, light_diagram: &Vec<bool>) -> bool {
     let mut lights = vec![false; light_diagram.len()];
     press_buttons_for_lights(&mut lights, buttons);
-    lights.eq(light_diagram)
+    &lights == light_diagram
 }
 
 fn press_buttons_for_lights(lights: &mut Vec<bool>, buttons: Vec<&Button>) {
@@ -95,67 +95,116 @@ pub fn part2(machines: &Vec<Machine>) -> u32 {
     machines.iter().map(configure_machine).sum()
 }
 
+struct RunningMachine<'a> {
+    current_joltages: Vec<u32>,
+    buttons: Vec<Button>,
+    joltage_requirements: &'a Vec<u32>,
+    buttons_pressed: u32,
+}
+
+impl RunningMachine<'_> {
+    fn from_machine(machine: &'_ Machine) -> RunningMachine<'_> {
+        let lights = machine.joltage_requirements.len();
+        RunningMachine {
+            current_joltages: vec![0; lights],
+            buttons: machine.button_wiring_schematics.clone(),
+            joltage_requirements: &machine.joltage_requirements,
+            buttons_pressed: 0,
+        }
+    }
+}
+
 fn configure_machine(machine: &Machine) -> u32 {
-    let lights = machine.joltage_requirements.len();
-    let mut joltages = vec![0; lights];
-    let result = find_least_presses(
-        &mut joltages,
-        &machine.joltage_requirements,
-        &machine.button_wiring_schematics,
-        None,
-    );
+    let mut running_machine = RunningMachine::from_machine(machine);
+    let result = find_least_presses(&mut running_machine, None);
     println!("Result for machine {machine:?} is {result:?}.");
     result.expect(&format!("Machine {machine:?} should have a solution."))
 }
 
-fn find_least_presses(
-    joltages: &mut Vec<u32>,
-    joltage_requirements: &Vec<u32>,
-    buttons: &[Button],
-    previous_result: Option<u32>,
-) -> Option<u32> {
+fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<u32>) -> Option<u32> {
     // Guaranties:
     // return value is less than or equal to previous_result
-    if buttons.is_empty() {
+    // buttons list is restored to initial position
+    if requirements_met(machine) {
+        return Some(machine.buttons_pressed);
+    }
+    if requirements_impossible(machine)
+        || previous_result.is_some_and(|x| x <= machine.buttons_pressed)
+    {
         return previous_result;
     }
-    let button = &buttons[0];
-    let mut new_result = previous_result;
-    press_button(joltages, button);
 
-    if joltages == joltage_requirements {
-        unpress_button(joltages, button);
-        return Some(1);
-    } else if !joltages_overpowered(joltages, joltage_requirements) && previous_result != Some(1) {
-        new_result = find_least_presses(
-            joltages,
-            joltage_requirements,
-            buttons,
-            previous_result.map(|x| x - 1),
-        )
-        .map(|x| x + 1);
+    let required: Option<Button> = required_buttons(&machine);
+    if let Some(button) = required {
+        press_button(machine, &button);
+        let result = find_least_presses(machine, previous_result);
+        unpress_button(machine, &button);
+        return result;
     }
-    unpress_button(joltages, &button);
 
-    find_least_presses(joltages, joltage_requirements, &buttons[1..], new_result)
+    // Try pressing the first button
+    let button = machine
+        .buttons
+        .last()
+        .expect("Buttons list should not be empty")
+        .clone();
+    press_button(machine, &button);
+    let new_result = find_least_presses(machine, previous_result);
+    unpress_button(machine, &button);
+
+    // Try not pressing the first button
+    machine.buttons.pop();
+    let result = find_least_presses(machine, new_result);
+    machine.buttons.push(button);
+    result
 }
 
-fn press_button(joltages: &mut Vec<u32>, button: &Button) {
+fn required_buttons<'a>(machine: &RunningMachine<'_>) -> Option<Button> {
+    let counters = machine.joltage_requirements.len();
+    for i in 0..counters {
+        if machine.current_joltages[i] >= machine.joltage_requirements[i] {
+            continue;
+        }
+
+        let mut usable_buttons = machine.buttons.iter().filter(|button| button.contains(&i));
+        let first_button = usable_buttons
+            .next()
+            .expect("requirements should be achievable")
+            .clone();
+        if usable_buttons.next().is_none() {
+            return Some(first_button);
+        }
+    }
+    None
+}
+
+fn requirements_impossible(machine: &RunningMachine) -> bool {
+    joltages_overpowered(machine) || machine.buttons.is_empty()
+}
+
+fn requirements_met(machine: &RunningMachine) -> bool {
+    machine.current_joltages == *machine.joltage_requirements
+}
+
+fn press_button(machine: &mut RunningMachine, button: &Button) {
+    machine.buttons_pressed += 1;
     for i in button {
-        joltages[*i] += 1;
+        machine.current_joltages[*i] += 1;
     }
 }
 
-fn unpress_button(joltages: &mut Vec<u32>, button: &Button) {
+fn unpress_button(machine: &mut RunningMachine, button: &Button) {
+    machine.buttons_pressed -= 1;
     for i in button {
-        joltages[*i] -= 1;
+        machine.current_joltages[*i] -= 1;
     }
 }
 
-fn joltages_overpowered(joltages: &[u32], joltage_requirements: &[u32]) -> bool {
-    joltages
+fn joltages_overpowered(machine: &RunningMachine) -> bool {
+    machine
+        .current_joltages
         .iter()
-        .zip(joltage_requirements)
+        .zip(machine.joltage_requirements.iter())
         .any(|(j, r)| j > r)
 }
 
