@@ -1,5 +1,6 @@
 use crate::parsers::parse_with_delimiters;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
+use itertools::Either::{Left, Right};
 
 #[derive(Debug)]
 pub struct Machine {
@@ -116,6 +117,7 @@ impl RunningMachine<'_> {
 
 fn configure_machine(machine: &Machine) -> u32 {
     let mut running_machine = RunningMachine::from_machine(machine);
+    running_machine.buttons.sort_by_key(Vec::len);
     let result = find_least_presses(&mut running_machine, None);
     println!("Result for machine {machine:?} is {result:?}.");
     result.expect(&format!("Machine {machine:?} should have a solution."))
@@ -134,15 +136,25 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<u32>
         return previous_result;
     }
 
-    let required: Option<Button> = required_buttons(&machine);
-    if let Some(button) = required {
-        press_button(machine, &button);
+    if let Some((i, button)) = useless_button(&machine) {
+        machine.buttons.remove(i);
         let result = find_least_presses(machine, previous_result);
-        unpress_button(machine, &button);
+        machine.buttons.insert(i, button);
         return result;
     }
 
-    // Try pressing the first button
+    match required_button(machine) {
+        Left( button) => {
+            press_button(machine, &button);
+            let result = find_least_presses(machine, previous_result);
+            unpress_button(machine, &button);
+            return result;
+        }
+        Right(true) => return previous_result,
+        Right(false) => {}//
+    }
+
+    // Try pressing the last button
     let button = machine
         .buttons
         .last()
@@ -152,14 +164,31 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<u32>
     let new_result = find_least_presses(machine, previous_result);
     unpress_button(machine, &button);
 
-    // Try not pressing the first button
+    // Try not pressing the last button
     machine.buttons.pop();
     let result = find_least_presses(machine, new_result);
     machine.buttons.push(button);
     result
 }
 
-fn required_buttons<'a>(machine: &RunningMachine<'_>) -> Option<Button> {
+fn useless_button(machine: &RunningMachine) -> Option<(usize, Button)> {
+    let filled_requirements = machine
+        .joltage_requirements
+        .iter()
+        .zip(machine.current_joltages.iter())
+        .enumerate()
+        .filter(|(_, (req, jolt))| req == jolt)
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    for (i, button) in machine.buttons.iter().enumerate() {
+        if button.iter().any(|j| filled_requirements.contains(j)) {
+            return Some((i, button.clone()));
+        }
+    }
+    None
+}
+
+fn required_button<'a>(machine: &RunningMachine<'_>) -> Either<Button, bool> {
     let counters = machine.joltage_requirements.len();
     for i in 0..counters {
         if machine.current_joltages[i] >= machine.joltage_requirements[i] {
@@ -167,15 +196,15 @@ fn required_buttons<'a>(machine: &RunningMachine<'_>) -> Option<Button> {
         }
 
         let mut usable_buttons = machine.buttons.iter().filter(|button| button.contains(&i));
-        let first_button = usable_buttons
-            .next()
-            .expect("requirements should be achievable")
-            .clone();
-        if usable_buttons.next().is_none() {
-            return Some(first_button);
+        match usable_buttons.next() {
+            Some(button) =>
+                if usable_buttons.next().is_none() {
+                    return Left(button.clone());
+                }
+            None => return Right(true),
         }
     }
-    None
+    Right(false)
 }
 
 fn requirements_impossible(machine: &RunningMachine) -> bool {
