@@ -2,6 +2,8 @@ use crate::parsers::parse_with_delimiters;
 use itertools::Either::{Left, Right};
 use itertools::{Either, Itertools};
 use std::fmt::Debug;
+use std::io;
+use std::io::Write;
 
 struct LightDiagram(Vec<bool>);
 
@@ -135,8 +137,10 @@ fn configure_machine(machine: &Machine) -> i32 {
     let mut running_machine = RunningMachine::from_machine(machine);
     running_machine.buttons.sort_by_key(Vec::len);
     running_machine.buttons.reverse();
+    print!("Result for machine {machine:?} is ");
+    io::stdout().flush().unwrap();
     let result = find_least_presses(&mut running_machine, None);
-    println!("Result for machine {machine:?} is {result:?}.");
+    println!("{result:?}.");
     result.expect(&format!("Machine {machine:?} should have a solution."))
 }
 
