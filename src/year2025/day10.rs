@@ -2,6 +2,8 @@ use crate::parsers::parse_with_delimiters;
 use itertools::Either::{Left, Right};
 use itertools::{Either, Itertools};
 use std::fmt::Debug;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread;
 
 struct LightDiagram(Vec<bool>);
@@ -111,9 +113,18 @@ fn press_button_for_lights(lights: &mut Vec<bool>, button: &Button) {
 }
 
 pub fn part2(machines: Vec<Machine>) -> i32 {
+    let counter = Arc::new(AtomicU32::new(0));
     let handles: Vec<_> = machines
         .into_iter()
-        .map(|machine| thread::spawn(move || configure_machine(&machine)))
+        .map(|machine| {
+            let counter = Arc::clone(&counter);
+            thread::spawn(move || {
+                let result = configure_machine(&machine);
+                let number = counter.fetch_add(1, Ordering::Relaxed);
+                println!("Result for machine {number}: {machine:?} is {result:?}.");
+                result.expect(&format!("Machine {machine:?} should have a solution."))
+            })
+        })
         .collect();
     handles.into_iter().map(|h| h.join().unwrap()).sum()
 }
@@ -136,13 +147,11 @@ impl RunningMachine {
     }
 }
 
-fn configure_machine(machine: &Machine) -> i32 {
+fn configure_machine(machine: &Machine) -> Option<i32> {
     let mut running_machine = RunningMachine::from_machine(machine);
     running_machine.buttons.sort_by_key(Vec::len);
     running_machine.buttons.reverse();
-    let result = find_least_presses(&mut running_machine, None);
-    println!("Result for machine {machine:?} is {result:?}.");
-    result.expect(&format!("Machine {machine:?} should have a solution."))
+    find_least_presses(&mut running_machine, None)
 }
 
 fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<i32>) -> Option<i32> {
@@ -309,7 +318,7 @@ mod tests {
         let machines = input.map(|(machine, expected)| (parse_machine(machine), expected));
         for (machine, expected) in machines {
             let res = configure_machine(&machine);
-            assert_eq!(res, expected);
+            assert_eq!(res, Some(expected));
         }
     }
 
