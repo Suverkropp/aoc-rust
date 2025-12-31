@@ -1,6 +1,5 @@
 use crate::parsers::parse_with_delimiters;
-use itertools::Either::{Left, Right};
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -131,7 +130,7 @@ pub fn part2(machines: Vec<Machine>) -> i32 {
 
 struct RunningMachine {
     buttons: Vec<Button>,
-    available_buttons: Vec<bool>,
+    button_availability: Vec<bool>,
     joltage_requirements: Vec<i32>,
     buttons_pressed: i32,
 }
@@ -140,7 +139,7 @@ impl RunningMachine {
     fn from_machine(machine: &'_ Machine) -> RunningMachine {
         RunningMachine {
             buttons: machine.button_wiring_schematics.clone(),
-            available_buttons: vec![true; machine.button_wiring_schematics.len()],
+            button_availability: vec![true; machine.button_wiring_schematics.len()],
             joltage_requirements: machine.joltage_requirements.clone(),
             buttons_pressed: 0,
         }
@@ -176,41 +175,52 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<i32>
         return result;
     }
 
-    match required_button(machine) {
-        Left((i, requirement)) => {
+    match best_button(machine) {
+        None => previous_result,
+        Some(i) => {
             let button = machine.buttons[i].clone();
-            press_button_n_times(machine, &button, requirement);
-            machine.available_buttons[i] = false;
-            let result = find_least_presses(machine, previous_result);
-            machine.available_buttons[i] = true;
-            press_button_n_times(machine, &button, -requirement);
-            return result;
-        }
-        Right(impossible) => {
-            if impossible {
-                return previous_result;
+            let j = min_joltage(machine, &button);
+            press_button_n_times(machine, &button, j);
+            let mut result = previous_result;
+            machine.button_availability[i] = false;
+            for _ in 0..j {
+                result = find_least_presses(machine, result);
+                unpress_button(machine, &button);
             }
+            result = find_least_presses(machine, result);
+            machine.button_availability[i] = true;
+            result
         }
     }
-
-    // Try pressing the last button
-    let i = best_button(machine).expect("Buttons list should not be empty");
-    let button = machine.buttons[i].clone();
-    let j = min_joltage(machine, &button);
-    press_button_n_times(machine, &button, j);
-    let mut result = previous_result;
-    machine.available_buttons[i] = false;
-    for _ in 0..j {
-        result = find_least_presses(machine, result);
-        unpress_button(machine, &button);
-    }
-    result = find_least_presses(machine, result);
-    machine.available_buttons[i] = true;
-    result
 }
 
 fn best_button(machine: &RunningMachine) -> Option<usize> {
-    first_available_button(machine)
+    let mut buttons_per_joltage = vec![0; machine.joltage_requirements.len()];
+    for (_, button) in available_buttons(machine) {
+        for j in button {
+            buttons_per_joltage[*j] += 1;
+        }
+    }
+    let joltage_with_least_buttons = buttons_per_joltage
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| machine.joltage_requirements[*i] > 0)
+        .min_by_key(|(_, buttons)| **buttons)
+        .map(|(i, _)| i)
+        .expect("There should still be unresolved joltages");
+    available_buttons(machine)
+        .iter()
+        .find(|(_i, b)| b.contains(&joltage_with_least_buttons))
+        .map(|(i, _)| *i)
+}
+
+fn available_buttons(machine: &RunningMachine) -> Vec<(usize, &Button)> {
+    machine
+        .buttons
+        .iter()
+        .enumerate()
+        .filter(|(i, _b)| machine.button_availability[*i])
+        .collect()
 }
 
 fn min_joltage(machine: &RunningMachine, button: &Button) -> i32 {
@@ -223,59 +233,29 @@ fn min_joltage(machine: &RunningMachine, button: &Button) -> i32 {
 
 fn disable_buttons(machine: &mut RunningMachine, buttons: &Vec<usize>) {
     for button in buttons {
-        machine.available_buttons[*button] = false;
+        machine.button_availability[*button] = false;
     }
 }
 
 fn enable_buttons(machine: &mut RunningMachine, buttons: &Vec<usize>) {
     for button in buttons {
-        machine.available_buttons[*button] = true;
+        machine.button_availability[*button] = true;
     }
 }
 
 fn buttons_available(machine: &RunningMachine) -> bool {
-    machine.available_buttons.iter().any(|x| *x)
-}
-
-fn first_available_button(machine: &RunningMachine) -> Option<usize> {
-    machine.available_buttons.iter().position(|b| *b)
+    machine.button_availability.iter().any(|x| *x)
 }
 
 fn useless_buttons(machine: &RunningMachine) -> Vec<usize> {
     let filled_requirements = (0..machine.joltage_requirements.len())
         .filter(|i| machine.joltage_requirements[*i] == 0)
         .collect::<Vec<usize>>();
-    (0..machine.buttons.len())
-        .filter(|i| {
-            let button = &machine.buttons[*i];
-            machine.available_buttons[*i] && button.iter().any(|j| filled_requirements.contains(&j))
-        })
+    available_buttons(machine)
+        .iter()
+        .filter(|(_i, button)| button.iter().any(|j| filled_requirements.contains(&j)))
+        .map(|(i, _button)| *i)
         .collect()
-}
-
-fn required_button(machine: &RunningMachine) -> Either<(usize, i32), bool> {
-    let counters = machine.joltage_requirements.len();
-    for counter in 0..counters {
-        let required = machine.joltage_requirements[counter];
-        if required == 0 {
-            continue;
-        }
-
-        let mut usable_buttons = machine
-            .buttons
-            .iter()
-            .enumerate()
-            .filter(|(j, button)| machine.available_buttons[*j] && button.contains(&counter));
-        match usable_buttons.next() {
-            Some((i, _)) => {
-                if usable_buttons.next().is_none() {
-                    return Left((i, required));
-                }
-            }
-            None => return Right(true),
-        }
-    }
-    Right(false)
 }
 
 fn requirements_met(machine: &RunningMachine) -> bool {
