@@ -21,7 +21,7 @@ impl Debug for LightDiagram {
 pub struct Machine {
     light_diagram: LightDiagram,
     button_wiring_schematics: Vec<Button>,
-    joltage_requirements: Vec<u32>,
+    joltage_requirements: Vec<i32>,
 }
 
 type Button = Vec<usize>;
@@ -67,17 +67,17 @@ fn parse_button_wiring_schematic(input: &str) -> Button {
     })
 }
 
-fn parse_joltage_requirements(input: &str) -> Vec<u32> {
+fn parse_joltage_requirements(input: &str) -> Vec<i32> {
     parse_with_delimiters('{', '}', input, |content| {
         content.split(',').map(|s| s.parse().unwrap()).collect()
     })
 }
 
-pub fn part1(machines: &Vec<Machine>) -> u32 {
+pub fn part1(machines: &Vec<Machine>) -> i32 {
     machines.iter().map(start_machine).sum()
 }
 
-fn start_machine(machine: &Machine) -> u32 {
+fn start_machine(machine: &Machine) -> i32 {
     for presses in 0..machine.light_diagram.0.len() {
         if machine
             .button_wiring_schematics
@@ -85,7 +85,7 @@ fn start_machine(machine: &Machine) -> u32 {
             .combinations(presses)
             .any(|buttons| buttons_turn_on_machine(buttons, &machine.light_diagram))
         {
-            return presses as u32;
+            return presses as i32;
         }
     }
     panic!("No solution found for machine {machine:?}");
@@ -109,14 +109,14 @@ fn press_button_for_lights(lights: &mut Vec<bool>, button: &Button) {
     }
 }
 
-pub fn part2(machines: &Vec<Machine>) -> u32 {
+pub fn part2(machines: &Vec<Machine>) -> i32 {
     machines.iter().map(configure_machine).sum()
 }
 
 struct RunningMachine {
     buttons: Vec<Button>,
-    joltage_requirements: Vec<u32>,
-    buttons_pressed: u32,
+    joltage_requirements: Vec<i32>,
+    buttons_pressed: i32,
 }
 
 impl RunningMachine {
@@ -129,7 +129,7 @@ impl RunningMachine {
     }
 }
 
-fn configure_machine(machine: &Machine) -> u32 {
+fn configure_machine(machine: &Machine) -> i32 {
     let mut running_machine = RunningMachine::from_machine(machine);
     running_machine.buttons.sort_by_key(Vec::len);
     let result = find_least_presses(&mut running_machine, None);
@@ -137,14 +137,17 @@ fn configure_machine(machine: &Machine) -> u32 {
     result.expect(&format!("Machine {machine:?} should have a solution."))
 }
 
-fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<u32>) -> Option<u32> {
+fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<i32>) -> Option<i32> {
     // Guaranties:
     // return value is less than or equal to previous_result
     // buttons list is restored to initial position
-    if requirements_met(machine) {
+    if requirements_met(machine) && previous_result.is_none_or(|x| x > machine.buttons_pressed) {
         return Some(machine.buttons_pressed);
     }
-    if machine.buttons.is_empty() || previous_result.is_some_and(|x| x <= machine.buttons_pressed) {
+    if joltage_overpowered(machine)
+        || machine.buttons.is_empty()
+        || previous_result.is_some_and(|x| x <= machine.buttons_pressed)
+    {
         return previous_result;
     }
 
@@ -156,14 +159,17 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<u32>
     }
 
     match required_button(machine) {
-        Left(button) => {
-            press_button(machine, &button);
+        Left((button, j)) => {
+            press_button_n_times(machine, &button, j);
             let result = find_least_presses(machine, previous_result);
-            unpress_button(machine, &button);
+            press_button_n_times(machine, &button, -j);
             return result;
         }
-        Right(true) => return previous_result,
-        Right(false) => {} //
+        Right(impossible) => {
+            if impossible {
+                return previous_result;
+            }
+        }
     }
 
     // Try pressing the last button
@@ -199,10 +205,11 @@ fn useless_button(machine: &RunningMachine) -> Option<(usize, Button)> {
     None
 }
 
-fn required_button(machine: &RunningMachine) -> Either<Button, bool> {
+fn required_button(machine: &RunningMachine) -> Either<(Button, i32), bool> {
     let counters = machine.joltage_requirements.len();
     for i in 0..counters {
-        if machine.joltage_requirements[i] == 0 {
+        let required = machine.joltage_requirements[i];
+        if required == 0 {
             continue;
         }
 
@@ -210,7 +217,7 @@ fn required_button(machine: &RunningMachine) -> Either<Button, bool> {
         match usable_buttons.next() {
             Some(button) => {
                 if usable_buttons.next().is_none() {
-                    return Left(button.clone());
+                    return Left((button.clone(), required));
                 }
             }
             None => return Right(true),
@@ -223,18 +230,23 @@ fn requirements_met(machine: &RunningMachine) -> bool {
     machine.joltage_requirements.iter().all(|j| *j == 0)
 }
 
-fn press_button(machine: &mut RunningMachine, button: &Button) {
-    machine.buttons_pressed += 1;
+fn joltage_overpowered(machine: &RunningMachine) -> bool {
+    machine.joltage_requirements.iter().any(|j| *j < 0)
+}
+
+fn press_button_n_times(machine: &mut RunningMachine, button: &Button, n: i32) {
+    machine.buttons_pressed += n;
     for i in button {
-        machine.joltage_requirements[*i] -= 1;
+        machine.joltage_requirements[*i] -= n;
     }
 }
 
+fn press_button(machine: &mut RunningMachine, button: &Button) {
+    press_button_n_times(machine, button, 1);
+}
+
 fn unpress_button(machine: &mut RunningMachine, button: &Button) {
-    machine.buttons_pressed -= 1;
-    for i in button {
-        machine.joltage_requirements[*i] += 1;
-    }
+    press_button_n_times(machine, button, -1);
 }
 
 #[cfg(test)]
@@ -248,6 +260,28 @@ mod tests {
         let machines = handle_input(&input);
         let res = super::part1(&machines);
         assert_eq!(res, 7);
+    }
+
+    #[test]
+    pub fn test_machine_configuring() {
+        let input = [
+            ("[#.##] (0,2,3) (1,3) {197,15,197,212}", 212),
+            ("[.] (0) {0}", 0),
+            ("[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}", 10),
+            (
+                "[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}",
+                12,
+            ),
+            (
+                "[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}",
+                11,
+            ),
+        ];
+        let machines = input.map(|(machine, expected)| (parse_machine(machine), expected));
+        for (machine, expected) in machines {
+            let res = configure_machine(&machine);
+            assert_eq!(res, expected);
+        }
     }
 
     #[test]
