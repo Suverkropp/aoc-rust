@@ -115,6 +115,7 @@ pub fn part2(machines: &Vec<Machine>) -> i32 {
 
 struct RunningMachine {
     buttons: Vec<Button>,
+    available_buttons: Vec<bool>,
     joltage_requirements: Vec<i32>,
     buttons_pressed: i32,
 }
@@ -123,6 +124,7 @@ impl RunningMachine {
     fn from_machine(machine: &'_ Machine) -> RunningMachine {
         RunningMachine {
             buttons: machine.button_wiring_schematics.clone(),
+            available_buttons: vec![true; machine.button_wiring_schematics.len()],
             joltage_requirements: machine.joltage_requirements.clone(),
             buttons_pressed: 0,
         }
@@ -132,6 +134,7 @@ impl RunningMachine {
 fn configure_machine(machine: &Machine) -> i32 {
     let mut running_machine = RunningMachine::from_machine(machine);
     running_machine.buttons.sort_by_key(Vec::len);
+    running_machine.buttons.reverse();
     let result = find_least_presses(&mut running_machine, None);
     println!("Result for machine {machine:?} is {result:?}.");
     result.expect(&format!("Machine {machine:?} should have a solution."))
@@ -145,24 +148,28 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<i32>
         return Some(machine.buttons_pressed);
     }
     if joltage_overpowered(machine)
-        || machine.buttons.is_empty()
+        || !buttons_available(machine)
         || previous_result.is_some_and(|x| x <= machine.buttons_pressed)
     {
         return previous_result;
     }
 
-    if let Some((i, button)) = useless_button(&machine) {
-        machine.buttons.remove(i);
+    let useless_buttons = useless_buttons(machine);
+    if !useless_buttons.is_empty() {
+        disable_buttons(machine, &useless_buttons);
         let result = find_least_presses(machine, previous_result);
-        machine.buttons.insert(i, button);
+        enable_buttons(machine, &useless_buttons);
         return result;
     }
 
     match required_button(machine) {
-        Left((button, j)) => {
-            press_button_n_times(machine, &button, j);
+        Left((i, requirement)) => {
+            let button = machine.buttons[i].clone();
+            press_button_n_times(machine, &button, requirement);
+            machine.available_buttons[i] = false;
             let result = find_least_presses(machine, previous_result);
-            press_button_n_times(machine, &button, -j);
+            machine.available_buttons[i] = true;
+            press_button_n_times(machine, &button, -requirement);
             return result;
         }
         Right(impossible) => {
@@ -173,51 +180,68 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<i32>
     }
 
     // Try pressing the last button
-    let button = machine
-        .buttons
-        .last()
-        .expect("Buttons list should not be empty")
-        .clone();
+    let i = first_available_button(machine).expect("Buttons list should not be empty");
+    let button = machine.buttons[i].clone();
     press_button(machine, &button);
     let new_result = find_least_presses(machine, previous_result);
     unpress_button(machine, &button);
 
     // Try not pressing the last button
-    machine.buttons.pop();
+    machine.available_buttons[i] = false;
     let result = find_least_presses(machine, new_result);
-    machine.buttons.push(button);
+    machine.available_buttons[i] = true;
     result
 }
 
-fn useless_button(machine: &RunningMachine) -> Option<(usize, Button)> {
-    let filled_requirements = machine
-        .joltage_requirements
-        .iter()
-        .enumerate()
-        .filter(|(_, req)| **req == 0)
-        .map(|(i, _)| i)
-        .collect::<Vec<_>>();
-    for (i, button) in machine.buttons.iter().enumerate() {
-        if button.iter().any(|j| filled_requirements.contains(j)) {
-            return Some((i, button.clone()));
-        }
+fn disable_buttons(machine: &mut RunningMachine, buttons: &Vec<usize>) {
+    for button in buttons {
+        machine.available_buttons[*button] = false;
     }
-    None
 }
 
-fn required_button(machine: &RunningMachine) -> Either<(Button, i32), bool> {
+fn enable_buttons(machine: &mut RunningMachine, buttons: &Vec<usize>) {
+    for button in buttons {
+        machine.available_buttons[*button] = true;
+    }
+}
+
+fn buttons_available(machine: &RunningMachine) -> bool {
+    machine.available_buttons.iter().any(|x| *x)
+}
+
+fn first_available_button(machine: &RunningMachine) -> Option<usize> {
+    machine.available_buttons.iter().position(|b| *b)
+}
+
+fn useless_buttons(machine: &RunningMachine) -> Vec<usize> {
+    let filled_requirements = (0..machine.joltage_requirements.len())
+        .filter(|i| machine.joltage_requirements[*i] == 0)
+        .collect::<Vec<usize>>();
+    (0..machine.buttons.len())
+        .filter(|i| {
+            let button = &machine.buttons[*i];
+            machine.available_buttons[*i] && button.iter().any(|j| filled_requirements.contains(&j))
+        })
+        .collect()
+}
+
+fn required_button(machine: &RunningMachine) -> Either<(usize, i32), bool> {
     let counters = machine.joltage_requirements.len();
-    for i in 0..counters {
-        let required = machine.joltage_requirements[i];
+    for counter in 0..counters {
+        let required = machine.joltage_requirements[counter];
         if required == 0 {
             continue;
         }
 
-        let mut usable_buttons = machine.buttons.iter().filter(|button| button.contains(&i));
+        let mut usable_buttons = machine
+            .buttons
+            .iter()
+            .enumerate()
+            .filter(|(j, button)| machine.available_buttons[*j] && button.contains(&counter));
         match usable_buttons.next() {
-            Some(button) => {
+            Some((i, _)) => {
                 if usable_buttons.next().is_none() {
-                    return Left((button.clone(), required));
+                    return Left((i, required));
                 }
             }
             None => return Right(true),
