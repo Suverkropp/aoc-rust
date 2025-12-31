@@ -194,17 +194,31 @@ fn find_least_presses(machine: &mut RunningMachine, previous_result: Option<i32>
     }
 
     // Try pressing the last button
-    let i = first_available_button(machine).expect("Buttons list should not be empty");
+    let i = best_button(machine).expect("Buttons list should not be empty");
     let button = machine.buttons[i].clone();
-    press_button(machine, &button);
-    let new_result = find_least_presses(machine, previous_result);
-    unpress_button(machine, &button);
-
-    // Try not pressing the last button
+    let j = min_joltage(machine, &button);
+    press_button_n_times(machine, &button, j);
+    let mut result = previous_result;
     machine.available_buttons[i] = false;
-    let result = find_least_presses(machine, new_result);
+    for _ in 0..j {
+        result = find_least_presses(machine, result);
+        unpress_button(machine, &button);
+    }
+    result = find_least_presses(machine, result);
     machine.available_buttons[i] = true;
     result
+}
+
+fn best_button(machine: &RunningMachine) -> Option<usize> {
+    first_available_button(machine)
+}
+
+fn min_joltage(machine: &RunningMachine, button: &Button) -> i32 {
+    button
+        .iter()
+        .map(|i| machine.joltage_requirements[*i])
+        .min()
+        .unwrap()
 }
 
 fn disable_buttons(machine: &mut RunningMachine, buttons: &Vec<usize>) {
@@ -277,10 +291,6 @@ fn press_button_n_times(machine: &mut RunningMachine, button: &Button, n: i32) {
     for i in button {
         machine.joltage_requirements[*i] -= n;
     }
-}
-
-fn press_button(machine: &mut RunningMachine, button: &Button) {
-    press_button_n_times(machine, button, 1);
 }
 
 fn unpress_button(machine: &mut RunningMachine, button: &Button) {
