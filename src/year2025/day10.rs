@@ -2,8 +2,7 @@ use crate::parsers::parse_with_delimiters;
 use itertools::Either::{Left, Right};
 use itertools::{Either, Itertools};
 use std::fmt::Debug;
-use std::io;
-use std::io::Write;
+use std::thread;
 
 struct LightDiagram(Vec<bool>);
 
@@ -111,8 +110,12 @@ fn press_button_for_lights(lights: &mut Vec<bool>, button: &Button) {
     }
 }
 
-pub fn part2(machines: &Vec<Machine>) -> i32 {
-    machines.iter().map(configure_machine).sum()
+pub fn part2(machines: Vec<Machine>) -> i32 {
+    let handles: Vec<_> = machines
+        .into_iter()
+        .map(|machine| thread::spawn(move || configure_machine(&machine)))
+        .collect();
+    handles.into_iter().map(|h| h.join().unwrap()).sum()
 }
 
 struct RunningMachine {
@@ -137,10 +140,8 @@ fn configure_machine(machine: &Machine) -> i32 {
     let mut running_machine = RunningMachine::from_machine(machine);
     running_machine.buttons.sort_by_key(Vec::len);
     running_machine.buttons.reverse();
-    print!("Result for machine {machine:?} is ");
-    io::stdout().flush().unwrap();
     let result = find_least_presses(&mut running_machine, None);
-    println!("{result:?}.");
+    println!("Result for machine {machine:?} is {result:?}.");
     result.expect(&format!("Machine {machine:?} should have a solution."))
 }
 
@@ -316,7 +317,7 @@ mod tests {
     pub fn part2() {
         let input = get_test_input(2025, 10);
         let machines = handle_input(&input);
-        let res = super::part2(&machines);
+        let res = super::part2(machines);
         assert_eq!(res, 33);
     }
 }
