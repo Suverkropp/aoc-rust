@@ -1,3 +1,5 @@
+use std::cmp::Ordering::{Equal, Greater, Less};
+use itertools::Itertools;
 use std::collections::HashMap;
 
 type Code<'a> = &'a str;
@@ -22,14 +24,8 @@ pub fn part1(devices: &HashMap<Code, Vec<Code>>) -> u32 {
     find_paths(devices, "you", "out")
 }
 
-pub fn part2(devices: &HashMap<Code, Vec<Code>>) -> u32 {
-    let dac_to_out = find_paths(devices, "dac", "out");
-    let fft_to_out = find_paths(devices, "fft", "out");
-    let dac_to_fft = find_paths(devices, "dac", "fft");
-    let fft_to_dac = find_paths(devices, "fft", "dac");
-    let srv_to_fft = find_paths(devices, "srv", "fft");
-    let srv_to_dac = find_paths(devices, "srv", "dac");
-    srv_to_fft * fft_to_dac * dac_to_out + srv_to_dac * dac_to_fft * fft_to_out
+pub fn part2(devices: &HashMap<Code, Vec<Code>>) -> u64 {
+    find_paths_via(devices, "svr", "out")
 }
 
 fn find_paths<'a>(devices: &HashMap<&'a str, Vec<&'a str>>, start: Code, end: Code) -> u32 {
@@ -53,11 +49,58 @@ fn find_paths<'a>(devices: &HashMap<&'a str, Vec<&'a str>>, start: Code, end: Co
                 return val;
             }
             paths_to_out.insert(code, val);
-            to_check.append(&mut reverse.get(code).unwrap().clone())
+            to_check.append(&mut reverse.get(code).unwrap_or(&Vec::new()).clone())
         }
     }
     println!("No paths found from {start} to {end}");
     0
+}
+
+type CountStatus = (u64, bool, bool);
+
+fn find_paths_via<'a>(devices: &HashMap<&'a str, Vec<&'a str>>, start: Code, end: Code) -> u64 {
+    let mut paths_to_out: HashMap<Code, (u64, bool, bool)> = HashMap::new();
+    paths_to_out.insert(end, (1, false, false));
+    let reverse = reverse_map(devices);
+    let mut to_check = reverse
+        .get(end)
+        .expect("Some device should output to \"out\"")
+        .clone();
+    while let Some(code) = to_check.pop() {
+        let val: Option<(u64, bool, bool)> = devices
+            .get(code)
+            .expect("Each code should be in device list")
+            .iter()
+            .map(|output| paths_to_out.get(output))
+            .fold_options((0, false, false), combine_counts);
+        if let Some(res) = val {
+            let (val, mut dac, mut fft) = res;
+            if code == start {
+                return if dac && fft {
+                    val
+                } else {
+                    println!("No paths via dac and fft found");
+                    0
+                };
+            } else if code == "dac" {
+                dac = true;
+            } else if code == "fft" {
+                fft = true;
+            }
+            paths_to_out.insert(code, (val, dac, fft));
+            to_check.append(&mut reverse.get(code).unwrap_or(&Vec::new()).clone())
+        }
+    }
+    println!("No paths found from {start} to {end}");
+    0
+}
+
+fn combine_counts((c1, dac1, fft1): CountStatus, (c2, dac2, fft2): &CountStatus) -> CountStatus {
+    match (dac1, fft1).cmp( &(*dac2, *fft2)) {
+        Less => (*c2, *dac2, *fft2),
+        Equal => (c1+c2, dac1, fft1),
+        Greater => (c1, dac1, fft1)
+    }
 }
 
 fn reverse_map<'a>(map: &HashMap<&'a str, Vec<&'a str>>) -> HashMap<Code<'a>, Vec<Code<'a>>> {
@@ -93,7 +136,7 @@ mod tests {
 
     #[test]
     pub fn part2() {
-        let input = get_test_input(2025, 11);
+        let input = get_test_input(2025, 11_2);
         let devices = handle_input(&input);
         let res = super::part2(&devices);
         assert_eq!(res, 2);
