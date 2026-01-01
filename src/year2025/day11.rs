@@ -28,7 +28,7 @@ pub fn part2(devices: &HashMap<Code, Vec<Code>>) -> u64 {
     find_paths_via(devices, "svr", "out")
 }
 
-fn find_paths<'a>(devices: &HashMap<&'a str, Vec<&'a str>>, start: Code, end: Code) -> u32 {
+fn find_paths<'a>(devices: &HashMap<Code, Vec<Code>>, start: Code, end: Code) -> u32 {
     let mut paths_to_out: HashMap<Code, u32> = HashMap::new();
     paths_to_out.insert(end, 1);
     let reverse = reverse_map(devices);
@@ -58,7 +58,7 @@ fn find_paths<'a>(devices: &HashMap<&'a str, Vec<&'a str>>, start: Code, end: Co
 
 type CountStatus = (u64, bool, bool);
 
-fn find_paths_via<'a>(devices: &HashMap<&'a str, Vec<&'a str>>, start: Code, end: Code) -> u64 {
+fn find_paths_via<'a>(devices: &HashMap<Code, Vec<Code>>, start: Code, end: Code) -> u64 {
     let mut paths_to_out: HashMap<Code, (u64, bool, bool)> = HashMap::new();
     paths_to_out.insert(end, (1, false, false));
     let reverse = reverse_map(devices);
@@ -103,7 +103,7 @@ fn combine_counts((c1, dac1, fft1): CountStatus, (c2, dac2, fft2): &CountStatus)
     }
 }
 
-fn reverse_map<'a>(map: &HashMap<&'a str, Vec<&'a str>>) -> HashMap<Code<'a>, Vec<Code<'a>>> {
+fn reverse_map<'a>(map: &HashMap<Code<'a>, Vec<Code<'a>>>) -> HashMap<Code<'a>, Vec<Code<'a>>> {
     let mut reverse = HashMap::new();
     for (code, outputs) in map.iter() {
         for output in outputs {
@@ -113,7 +113,7 @@ fn reverse_map<'a>(map: &HashMap<&'a str, Vec<&'a str>>) -> HashMap<Code<'a>, Ve
     reverse
 }
 
-fn add_to_key<'a>(map: &mut HashMap<Code<'a>, Vec<Code<'a>>>, key: &'a str, value: &'a str) {
+fn add_to_key<'a>(map: &mut HashMap<Code<'a>, Vec<Code<'a>>>, key: Code<'a>, value: Code<'a>) {
     if let Some(val) = map.get_mut(&key) {
         val.push(value);
     } else {
