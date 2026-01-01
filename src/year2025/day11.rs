@@ -1,6 +1,7 @@
-use std::cmp::Ordering::{Equal, Greater, Less};
 use itertools::Itertools;
+use std::cmp::Ordering::{Equal, Greater, Less};
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 type Code<'a> = &'a str;
 
@@ -21,86 +22,44 @@ fn parse_outputs(line: &'_ str) -> (Code<'_>, Vec<Code<'_>>) {
 }
 
 pub fn part1(devices: &HashMap<Code, Vec<Code>>) -> u32 {
-    find_paths(devices, "you", "out")
+    find_paths(devices, "you", "out", 1, 0, |a, b| a + b, |_, v| v)
 }
 
-pub fn part2(devices: &HashMap<Code, Vec<Code>>) -> u64 {
-    find_paths_via(devices, "svr", "out")
-}
-
-fn find_paths<'a>(devices: &HashMap<Code, Vec<Code>>, start: Code, end: Code) -> u32 {
-    let mut paths_to_out: HashMap<Code, u32> = HashMap::new();
-    paths_to_out.insert(end, 1);
+fn find_paths<'a, T: Debug + Clone>(
+    devices: &HashMap<Code, Vec<Code>>,
+    start: Code,
+    end: Code,
+    initial: T,
+    default: T,
+    fold_func: impl Fn(T, &T) -> T,
+    adapt: impl Fn(Code, T) -> T,
+) -> T {
+    let mut values: HashMap<Code, T> = HashMap::new();
+    values.insert(end, initial);
     let reverse = reverse_map(devices);
     let mut to_check = reverse
         .get(end)
         .expect("Some device should output to \"out\"")
         .clone();
     while let Some(code) = to_check.pop() {
-        let val: Option<u32> = devices
+        let val: Option<T> = devices
             .get(code)
             .expect("Each code should be in device list")
             .iter()
-            .map(|output| paths_to_out.get(output))
-            .sum();
+            .map(|output| values.get(output))
+            .fold_options(default.clone(), |a, b| fold_func(a, b));
         if let Some(val) = val {
             if code == start {
-                println!("{val} paths found from {start} to {end}");
+                println!("{val:?} paths found from {start} to {end}");
                 return val;
             }
-            paths_to_out.insert(code, val);
+            let val = adapt(code, val);
+            values.insert(code, val);
             to_check.append(&mut reverse.get(code).unwrap_or(&Vec::new()).clone())
         }
     }
     println!("No paths found from {start} to {end}");
-    0
-}
-
-type CountStatus = (u64, bool, bool);
-
-fn find_paths_via<'a>(devices: &HashMap<Code, Vec<Code>>, start: Code, end: Code) -> u64 {
-    let mut paths_to_out: HashMap<Code, (u64, bool, bool)> = HashMap::new();
-    paths_to_out.insert(end, (1, false, false));
-    let reverse = reverse_map(devices);
-    let mut to_check = reverse
-        .get(end)
-        .expect("Some device should output to \"out\"")
-        .clone();
-    while let Some(code) = to_check.pop() {
-        let val: Option<(u64, bool, bool)> = devices
-            .get(code)
-            .expect("Each code should be in device list")
-            .iter()
-            .map(|output| paths_to_out.get(output))
-            .fold_options((0, false, false), combine_counts);
-        if let Some(res) = val {
-            let (val, mut dac, mut fft) = res;
-            if code == start {
-                return if dac && fft {
-                    val
-                } else {
-                    println!("No paths via dac and fft found");
-                    0
-                };
-            } else if code == "dac" {
-                dac = true;
-            } else if code == "fft" {
-                fft = true;
-            }
-            paths_to_out.insert(code, (val, dac, fft));
-            to_check.append(&mut reverse.get(code).unwrap_or(&Vec::new()).clone())
-        }
-    }
-    println!("No paths found from {start} to {end}");
-    0
-}
-
-fn combine_counts((c1, dac1, fft1): CountStatus, (c2, dac2, fft2): &CountStatus) -> CountStatus {
-    match (dac1, fft1).cmp( &(*dac2, *fft2)) {
-        Less => (*c2, *dac2, *fft2),
-        Equal => (c1+c2, dac1, fft1),
-        Greater => (c1, dac1, fft1)
-    }
+    default
 }
 
 fn reverse_map<'a>(map: &HashMap<Code<'a>, Vec<Code<'a>>>) -> HashMap<Code<'a>, Vec<Code<'a>>> {
@@ -118,6 +77,38 @@ fn add_to_key<'a>(map: &mut HashMap<Code<'a>, Vec<Code<'a>>>, key: Code<'a>, val
         val.push(value);
     } else {
         map.insert(key, vec![value]);
+    }
+}
+
+type CountStatus = (u64, bool, bool);
+pub fn part2(devices: &HashMap<Code, Vec<Code>>) -> u64 {
+    find_paths(
+        devices,
+        "svr",
+        "out",
+        (1, false, false),
+        (0, false, false),
+        combine_counts,
+        check_dac_or_fft,
+    )
+    .0
+}
+
+fn combine_counts((c1, dac1, fft1): CountStatus, (c2, dac2, fft2): &CountStatus) -> CountStatus {
+    match (dac1, fft1).cmp(&(*dac2, *fft2)) {
+        Less => (*c2, *dac2, *fft2),
+        Equal => (c1 + c2, dac1, fft1),
+        Greater => (c1, dac1, fft1),
+    }
+}
+
+fn check_dac_or_fft(code: Code, (c, dac, fft): CountStatus) -> CountStatus {
+    if code == "dac" {
+        (c, true, fft)
+    } else if code == "fft" {
+        (c, dac, true)
+    } else {
+        (c, dac, fft)
     }
 }
 
